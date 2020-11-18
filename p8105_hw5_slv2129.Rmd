@@ -15,8 +15,11 @@ library(purrr)
 ## Problem 1
 
 Describing the raw dataset:     
+```{r}
+raw_df = read.csv("data/homicide-data.csv")
+```
 
-
+This dataset consists of data associated with homocides from 50 differnet US cities and this information was put together by The Washington Post. This dataset contains the following variables: `r names(raw_df)`. The dimensions of the dataset are as follows: `r dim(raw_df)`(rows, columns). 
 
 Reading and cleaning the dataset. Followed by, creating a city_state variable and summarizing within cities. 
 ```{r}
@@ -131,5 +134,140 @@ long_df %>%
   ylab("Observations") + 
   xlab("Week Type")
 ```
- 
- 
+Between the two study arms, the subjects from the experimental group appear to demonstrate a positive trend (gradual increase) in their observation over the 8-week time period when compared to the subjects from control group. The subjects from the control displayed somewhat consistent observations over the study duration. The observations associated with the experimental group subjects indicate a positive slope, while the control group subject observations depict a slope of value around 0.     
+
+## Problem 3
+
+Creating a function to obtain the estimate of mean, p-value and decision for fixed n = 30 and sd = 5
+```{r}
+sim_mean_pval = function(mu = 0) {
+  sim_data  = 
+    tibble(
+      x = rnorm(n = 30, mean = mu, sd = 5)
+    )
+  
+  sim_data %>%
+    t.test(mu = 0) %>% #the default alpha value is 0.05#
+    broom::tidy() %>%
+    mutate(
+      true_mu = mu,
+      decision = as.factor(case_when(
+        p.value <= 0.05 ~ "reject",
+        p.value > 0.05 ~ "fail to reject"
+      ))
+        ) %>%
+    select(true_mu, estimate, p.value, decision)
+}
+```
+
+Simulating the function created above 5000 times for various mean values and subsequently storing the results in a dataframe. 
+```{r}
+set.seed(200)
+
+#Case when mu = 0#
+output_mu_0 = 
+  rerun(5000, sim_mean_pval(mu = 0)) %>%
+  bind_rows() 
+
+output_mu_0 = output_mu_0 %>%
+  mutate(
+    prop_reject = output_mu_0 %>% filter(decision == "reject") %>% count() %>% pull()/ 5000
+  )
+
+#Case when mu = 1#
+output_mu_1 = 
+  rerun(5000, sim_mean_pval(mu = 1)) %>%
+  bind_rows()
+
+output_mu_1 = output_mu_1 %>%
+  mutate(
+    prop_reject = output_mu_1 %>% filter(decision == "reject") %>% count() %>% pull() / 5000
+  )
+
+#Case when mu = 2#
+output_mu_2 = 
+  rerun(5000, sim_mean_pval(mu = 2)) %>%
+  bind_rows() 
+
+output_mu_2 = output_mu_2 %>%
+  mutate(
+    prop_reject = output_mu_2 %>% filter(decision == "reject") %>% count() %>% pull() / 5000
+  )
+
+#Case when mu = 3#
+output_mu_3 = 
+  rerun(5000, sim_mean_pval(mu = 3)) %>%
+  bind_rows() 
+
+output_mu_3 = output_mu_3 %>%
+  mutate(
+    prop_reject = output_mu_3 %>% filter(decision == "reject") %>% count() %>% pull() / 5000
+  )
+
+#Case when mu = 4#
+output_mu_4 = 
+  rerun(5000, sim_mean_pval(mu = 4)) %>%
+  bind_rows() 
+
+output_mu_4 = output_mu_4 %>%
+  mutate(
+    prop_reject = output_mu_4 %>% filter(decision == "reject") %>% count() %>% pull()/ 5000
+  )
+
+#Case when mu = 5#
+output_mu_5 = 
+  rerun(5000, sim_mean_pval(mu = 5)) %>%
+  bind_rows() 
+
+output_mu_5 = output_mu_5 %>%
+  mutate(
+    prop_reject = output_mu_5 %>% filter(decision == "reject") %>% count() %>% pull()/ 5000
+  )
+
+#Case when mu = 6#
+output_mu_6 = 
+  rerun(5000, sim_mean_pval(mu = 6)) %>%
+  bind_rows() 
+
+output_mu_6 = output_mu_6 %>%
+  mutate(
+    prop_reject = output_mu_6 %>% filter(decision == "reject") %>% count() %>% pull()/ 5000
+  )
+
+#Binding the rows from the dataframes to create one final dataframe#
+
+output = 
+  bind_rows(output_mu_0, output_mu_1, output_mu_2, output_mu_3, output_mu_4, output_mu_5, output_mu_6) 
+
+```
+
+Creating a plot to show the proportion of times the null was rejected on the y axis and the true value of μ on the x axis.
+```{r}
+output %>% 
+  ggplot(aes(x = true_mu, y = prop_reject)) +
+  geom_point() +
+  geom_line() +
+  xlab("True value of μ") +
+  ylab("Proportion of times the null was rejected")
+```
+Based on the graph, we can infer that the effect size and power are positively correlated. As the effect size increases, one will most likely reject the null hypothesis resulting in increased power.
+
+Creating a plot to show the average estimate of μ on the y axis and the true value of μ on the x axis
+```{r}
+output %>%
+  ggplot(aes(x = true_mu, y = estimate)) +
+  geom_point() +
+  xlab("True value of μ") +
+  ylab("Average estimate of μ")
+```
+
+Creating a plot to show the average estimate of μ only in samples for which the null was rejected on the y axis and the true value of μ on the x axis.
+```{r}
+output %>%
+  filter(decision == "reject") %>%
+  ggplot(aes(x = true_mu, y = estimate)) +
+  geom_point() +
+  xlab("True value of μ") +
+  ylab("Average estimate of μ")
+```
+No, the sample average of μ across tests for which the null is rejected is not equal to the true value of μ. This can be observed from the wide range of sample averages of μ, compared to their respective true values of μ. The spread of average μ values increases with the increasing value of true μ. 
