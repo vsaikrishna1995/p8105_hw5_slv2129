@@ -4,7 +4,7 @@ author: "Krishna Vemulapalli"
 output: github_document
 ---
 
-```{r setup}
+```{r setup, message=FALSE}
 library(tidyverse)
 library(ggplot2)
 library(knitr)
@@ -86,3 +86,50 @@ city_state_prop_test %>%
   xlab("City, State")
 ```
 
+## Problem 2    
+
+Creating a dataframe containing all the csv filenames
+```{r, message=FALSE, warning=FALSE}
+long_fnames_df = 
+  tibble(fname = list.files("data/data_long")) %>%
+  mutate(
+    path = str_c("data/data_long/", fname),
+    obs = map(.x = path, ~read_csv(.x))
+  )
+```
+
+creating a dataframe consisting of all the subjects and their respective observations
+```{r}
+long_df = 
+  long_fnames_df %>%
+  separate(fname, into = c("study_arm", "study_id", sep = ".")) %>%
+  select(-c(".", "path")) %>%
+  unnest(obs) %>%
+  pivot_longer(
+    cols = week_1:week_8,
+    names_to = "week_type",
+    values_to = "observations"
+  ) %>%
+  mutate(
+    study_id = as.numeric(study_id),
+    study_arm = case_when(
+      study_arm == "con" ~ "control",
+      study_arm == "exp" ~ "experimental"
+    ),
+    study_arm = as.factor(study_arm),
+    week_type = as.factor(week_type)
+  )
+```
+
+ Creating a spaghetti plot showing observations on each subject over time
+```{r}
+long_df %>%
+  ggplot(aes(x = week_type, y = observations, group = study_id, color = study_arm)) +
+  geom_line() +
+  facet_grid(~study_arm) +
+  theme(axis.text.x = element_text(angle = 45)) +
+  ylab("Observations") + 
+  xlab("Week Type")
+```
+ 
+ 
