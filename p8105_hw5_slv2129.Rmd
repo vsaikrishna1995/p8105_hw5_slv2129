@@ -9,6 +9,80 @@ library(tidyverse)
 library(ggplot2)
 library(knitr)
 library(janitor)
+library(purrr)
 ```
 
 ## Problem 1
+
+Describing the raw dataset:     
+
+
+
+Reading and cleaning the dataset. Followed by, creating a city_state variable and summarizing within cities. 
+```{r}
+homocide_df = 
+  read.csv("data/homicide-data.csv") %>%
+  mutate(
+    city_state = str_c(city, state, sep = ", "), #creating the city_state variable#
+    homocide_status = case_when(
+     disposition == "Open/No arrest" ~ "unsolved",
+     disposition == "Closed without arrest" ~ "unsolved",
+     disposition == "Closed by arrest" ~ "solved"
+    ) #creating the homocide status variable#
+  ) %>%
+  clean_names()
+
+summary_df = 
+  homocide_df %>%
+  filter(city_state != "Tulsa, AL") %>% #removed the "Tulsa, AL" obs because it has only one unsolved homocide. This indicates a data entry mistake#
+  select(city_state, homocide_status) %>% #keeping only city_state and homocide_status variable#
+  group_by(city_state) %>%
+  summarise(
+    total_no_homocides = n(),
+    no_unsolved_homocides = sum(homocide_status == "unsolved")
+  ) #calculating the total homocides and number of unsolved homocides by city_state#
+
+summary_df %>%
+  kable()
+  
+```
+
+Estimating the proportion of homicides that are unsolved in Baltimore, MD
+```{r}
+baltimore_MD_prop_test = 
+  prop.test(
+  summary_df %>% filter(city_state == "Baltimore, MD") %>% pull(no_unsolved_homocides),
+  summary_df %>% filter(city_state == "Baltimore, MD") %>% pull(total_no_homocides))
+
+#Applying the broom::tidy to convert the output into a tibble#
+baltimore_MD_prop_test %>% 
+  broom::tidy() %>%
+  select(estimate, conf.low, conf.high) #selecting only the estimate and confidence intervals
+```
+
+Estimating the proportion of homicides that are unsolved and creating estimate and confidence intervals for each city_state
+```{r}
+city_state_prop_test =
+  summary_df %>%
+  mutate(
+    prop_test = map2(.x = no_unsolved_homocides, .y = total_no_homocides, ~prop.test(.x, .y)),
+    prop_test_tidy = map(.x = prop_test, ~broom::tidy(.x))
+  ) %>%
+  select(-prop_test) %>% #dropping prop_test variable#
+  unnest(prop_test_tidy) %>% #unnesting prop_test_tidy variable#
+  select(city_state, estimate, conf.low, conf.high) %>% #subsetting only the city_state, estimate and confidence intervals#
+  arrange(desc(estimate)) #Organizing cities according to the proportion of unsolved homicides#
+```
+
+Creating a plot that shows the estimates and CIs for each city
+```{r}
+city_state_prop_test %>%
+  mutate(city_state = fct_reorder(city_state, estimate)) %>%
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  theme(axis.text.x = element_text(angle = 90)) +
+  ylab("Proportion of Unsolved Homicides") + 
+  xlab("City, State")
+```
+
